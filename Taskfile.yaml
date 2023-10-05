@@ -1,0 +1,16 @@
+version: 3
+
+tasks:
+  test:
+    cmds:
+      - odin test . -out:bin/uuid-test
+    silent: true
+    method: none
+    sources:
+      - ./**/*.odin
+    aliases:
+      - t
+    generates:
+      - bin/uuid-test
+
+interval: 250ms
