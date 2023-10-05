@@ -3,6 +3,7 @@ package uuid
 import "core:fmt"
 import "core:io"
 import "core:log"
+import "core:math/rand"
 import "core:mem"
 import "core:strings"
 import "core:testing"
@@ -41,10 +42,38 @@ InvalidVersion :: struct {
 	actual:   int,
 }
 
+// Creates a random UUID (v4). The `Rand` instance used can be overriden by passing a non-nil `r`
+// value.
+new_v4 :: proc(r: ^rand.Rand = nil) -> (uuid: Uuid) {
+	random_byte_count := rand.read(uuid[:], r)
+	assert(
+		random_byte_count == len(uuid),
+		fmt.tprintf("Expected to generate %d bytes for UUID", len(uuid)),
+	)
+	uuid[6] = (uuid[6] & 0x0f) | 0x40
+	uuid[8] = (uuid[8] & 0x3f) | 0x80
+
+	return uuid
+}
+
+@(test, private = "package")
+test_new_v4 :: proc(t: ^testing.T) {
+	context.logger = log.create_console_logger()
+
+	buffer: [36]byte
+	for i := 0; i < 10; i += 1 {
+		uuid := new_v4()
+		version := version(uuid)
+		testing.expect(t, version == 4, fmt.tprintf("Expected version to be 4, got: %v", version))
+		log.debugf("Generated UUID: %s", to_string(uuid, buffer[:]))
+	}
+}
+
 version :: proc(u: Uuid) -> int {
 	return int(u[6]) >> 4
 }
 
+// Reads a UUID from a standard formatted UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) string.
 from_string :: proc(s: string) -> (uuid: Uuid, error: FromStringError) {
 	if len(s) != 36 {
 		return Uuid{}, InvalidLength{expected = 36, length = len(s)}
@@ -104,6 +133,9 @@ test_from_string :: proc(t: ^testing.T) {
 	}
 }
 
+// Converts a UUID to a standard formatted UUID (xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx) string.
+// Note that a backing buffer is expected to be passed in and that it has to be 36 bytes in size.
+// This is done to avoid heap allocations.
 to_string :: proc(uuid: Uuid, buffer: []byte) -> string {
 	assert(len(buffer) == 36, "Expected `to_string` buffer to be 36 bytes long")
 	uuid: [16]byte = uuid
